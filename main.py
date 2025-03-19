@@ -51,7 +51,7 @@ def main(demo=False):
     if args.eval_zero_shot:
         task_list = None
         if demo:
-            task_list = ['boolq']
+            task_list = ['rte']
         results = eval_zero_shot(args, model, tokenizer, task_list=task_list)
         args.logger.info("\n" + make_table(results))
         with open(args.save_filepath, "w") as f:
