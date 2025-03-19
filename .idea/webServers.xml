@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="7c760afa-bdf7-4637-a54f-825e43dc6197" name="D2Prune_L40">
+        <fileTransfer accessType="SFTP" host="10.242.187.17" port="22" sshConfigId="639dd003-0922-437c-b101-e73676a49d94" sshConfig="D2Prune_L40">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
