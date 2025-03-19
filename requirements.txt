@@ -9,3 +9,4 @@ scikit-learn==1.5.1
 PyYAML==6.0.2
 toml==0.10.2
 accelerate==0.33.0
+lm-eval==0.4.4
