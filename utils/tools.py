@@ -1,14 +1,16 @@
 import os
-import yaml
-import toml
-import torch
-import torch.nn as nn
-import numpy as np
 import random
-from loguru import logger
 import sys
 import time
 from functools import wraps
+
+import numpy as np
+import toml
+import torch
+import torch.nn as nn
+import yaml
+from loguru import logger
+
 
 ## yaml
 def read_yaml_to_dict(yaml_path: str):
@@ -62,14 +64,14 @@ def timeit(func):
     """
     running time evaluation
     """
-    @wraps(func)  # 保留原函数的名称和文档字符串
+    @wraps(func)
     def wrapper(*args, **kwargs):
-        start_time = time.time()  # 记录开始时间
-        result = func(*args, **kwargs)  # 调用原函数
-        end_time = time.time()  # 记录结束时间
-        duration = end_time - start_time  # 计算运行时间
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        duration = end_time - start_time
         print(f"Function '{func.__name__}' took {duration:.6f} seconds to run.")
-        return result  # 返回原函数的结果
+        return result
     return wrapper
 
 
