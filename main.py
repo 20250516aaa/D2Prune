@@ -36,9 +36,9 @@ def main(demo=False):
 
     args.save_filepath = os.path.join(args.output_dir, f"log_{args.prune_method}.txt")
     ## ppl test
-    # ppl_test = eval_ppl(args, model, tokenizer)
+    ppl_test = eval_ppl(args, model, tokenizer)
     # device offloading
-    ppl_test = eval_ppl(args, model, tokenizer, is_split=True)
+    # ppl_test = eval_ppl(args, model, tokenizer, is_split=True)
 
     # zero-shot acc test
     if args.eval_zero_shot:
