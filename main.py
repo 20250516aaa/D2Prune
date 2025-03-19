@@ -61,4 +61,4 @@ def main(demo=False):
 
 
 if __name__ == "__main__":
-    main()
+    main(demo=True)
