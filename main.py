@@ -59,9 +59,5 @@ def main(demo=False):
         args.logger.info(f"save filepath:{args.save_filepath}")
 
 
-
-
-
-
 if __name__ == "__main__":
     main()
