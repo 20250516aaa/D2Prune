@@ -1,13 +1,10 @@
-from datasets import load_dataset
-from utils import setup_logger
-import random
-from transformers import AutoTokenizer
-import torch
 import os
-import numpy as np
-from loguru import logger
-from tqdm import tqdm
+import random
 from typing import List, Tuple
+
+import torch
+from datasets import load_dataset
+from tqdm import tqdm
 
 
 class PruneDataset:
@@ -99,7 +96,7 @@ class PruneDataset:
         random.seed(self.args.seed)
         train_loader = []
         if self.dataset_name == "c4":
-            for _ in tqdm(range(self.args.nsamples), desc="Processing calibdation data"):
+            for _ in tqdm(range(self.args.nsamples), desc="Processing calibration data"):
                 while True:
                     i = random.randint(0, len(train_data) - 1)  # 第i个句子
 
@@ -116,7 +113,7 @@ class PruneDataset:
                 tar = inp.clone()
                 tar[:, :-1] = -100
                 train_loader.append((inp, tar))
-            self.logger.info(f"processing {self.dataset_name} calibdation data finished")
+            self.logger.info(f"processing {self.dataset_name} calibration data finished")
             try:
                 torch.save(train_loader, cache_dataloader)
             except:
@@ -125,13 +122,13 @@ class PruneDataset:
 
         elif self.dataset_name in ["wikitext2", "wikitext"]:
             train_enc = tokenizer(" ".join(train_data['text']), return_tensors='pt')
-            for i in tqdm(range(self.args.nsamples), desc="Processing calibdation data"):
+            for i in tqdm(range(self.args.nsamples), desc="Processing calibration data"):
                 j = random.randint(0, train_enc['input_ids'].shape[1] - seq_len - 1)
                 inp = train_enc.input_ids[:, j:(j + seq_len)]
                 tar = inp.clone()
                 tar[:, :-1] = -100
                 train_loader.append((inp, tar))
-            self.logger.info(f"processing {self.dataset_name} calibdation data finished")
+            self.logger.info(f"processing {self.dataset_name} calibration data finished")
             try:
                 torch.save(train_loader, cache_dataloader)
             except:

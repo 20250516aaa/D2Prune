@@ -30,7 +30,7 @@ class Prune_Args:
         self.parser.add_argument('--seed', type=int, default=self.cfg['seed'],
                                  help='Seed for sampling the calibration data.')
         self.parser.add_argument('--nsamples', type=int, default=self.cfg['nsamples'],
-                                 help='Number of calibration samples.')  # 默认128
+                                 help='Number of calibration samples.')  # 128 default
         self.parser.add_argument('--prune_m', type=int, default=self.cfg['prune_m'],
                                  help='parameter m of n:m pruning')  #
         self.parser.add_argument('--prune_n', type=int, default=self.cfg['prune_n'],
@@ -53,7 +53,7 @@ class Prune_Args:
 
         self.parser.add_argument('--use_variant', action="store_true",
                                  help="whether to use the wanda variant described in the appendix")
-        # self.parser.add_argument('--save', type=str, default=self.cfg['save'], help='Path to save results.')  # 可调
+
         self.parser.add_argument('--save_model', type=str, default=self.cfg['save_model'],
                                  help='Path to save the pruned model.')
 

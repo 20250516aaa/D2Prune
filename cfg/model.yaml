@@ -3,7 +3,7 @@
 
 
 # base configuration----------------------------------------------------------------------------------------------------
-model: opt-125m # (str) path to pre-trained llm directory, i.e. llama-2-13b
+model:  # (str) path to pre-trained llm directory, i.e. llama-2-13b
 
 ## data load-------------------------------------------------------------------------------------------------------------
 cali_dataset: c4 # (str) calibration dataset name. i.e. c4, default
@@ -13,22 +13,22 @@ eval_data_path: # (str) evaluation dataset path, local path or huggingface datas
 data_cache_dir: ./cache # (str) data cache dir, using cache to load data, saving the data process time
 
 ## running log----------------------------------------------------------------------------------------------------------
-output_dir: output/opt-125m/d2prune-sp0.6 # (str) log and results directory, dir: output/llama-2-13b/wanda-sp0.6, files:experiment.log, results.txt
+output_dir:  # (str) log and results directory, dir: output/llama-2-13b/wanda-sp0.6, files:experiment.log, results.txt
 
-exp_name: # (str) experiment name, i.e., llama-2-13b_wanda_unstructured_sp0.6 or llama-2-13b wanda 4:8.
+exp_name:  # (str) experiment name, i.e., llama-2-13b_wanda_unstructured_sp0.6 or llama-2-13b wanda 4:8.
 
 
 # pruning configuration-------------------------------------------------------------------------------------------------
 seed: 0  # (int) number of random seed for {torch, numpy}
 nsamples: 128  # (int) number of calibration samples
-sparsity_ratio: 0.5 # (float) sparsity ratio for unstructured  pruning
+sparsity_ratio:  # (float) sparsity ratio for unstructured  pruning
 prune_m: 0 # (int) m value of n:m pruning
 prune_n: 0 # (int) n value of n:m pruning
 sparsity_type: unstructured # (str) sparsity type of pruning
 
 prune_method: d2prune
 
-cache_dir: # (str) path to llm cache dir
+cache_dir:  # (str) path to llm cache dir
 device: cuda:0 # (str, optional) device to run pruning, i.e. cuda:0
 save_model: # (str) path to save the pruned model.
 

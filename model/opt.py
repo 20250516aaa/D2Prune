@@ -7,12 +7,13 @@ opt-13b
 """
 
 from typing import List
-from .base_model import LLM
-import transformers
-from transformers import OPTForCausalLM
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from utils import setup_logger
+
 import torch
+import transformers
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import OPTForCausalLM
+
+from .base_model import LLM
 
 OPT_MODEL = transformers.models.opt.modeling_opt.OPTForCausalLM
 OPT_LAYER = transformers.models.opt.modeling_opt.OPTDecoderLayer
@@ -38,7 +39,6 @@ class OPT(LLM):
             torch.nn.init.kaiming_uniform_ = skip
             torch.nn.init.uniform_ = skip
             torch.nn.init.normal_ = skip
-            # model = LlamaForCausalLM.from_pretrained(self.model_path, torch_dtype='auto')
             model = OPTForCausalLM.from_pretrained(self.model_path, torch_dtype='auto',
                                                      low_cpu_mem_usage=True, device_map=self.device_type)
             model.seq_len = seq_len
