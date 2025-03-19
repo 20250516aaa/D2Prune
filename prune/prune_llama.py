@@ -76,6 +76,7 @@ class D2Prune_LLaMA:
         '''
         device = self.model.model.embed_tokens.weight.device  # 确保device一致性
         if device.type == 'cpu':
+            device = self.device
             self.model.model.embed_tokens.to(device)
         else:
             device = device.index

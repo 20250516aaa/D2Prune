@@ -76,6 +76,7 @@ class D2Prune_OPT:
         '''
         device = self.model.model.decoder.embed_tokens.weight.device  # 确保device一致性
         if device.type == 'cpu':
+            device = self.device
             self.model.model.decoder.embed_tokens.to(self.device)
             self.model.model.decoder.embed_positions.to(self.device)
             self.model.decoder.final_layer_norm.to(self.device)
