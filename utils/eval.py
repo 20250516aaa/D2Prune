@@ -1,24 +1,18 @@
 import time
-import torch
-import torch.nn as nn
-import gc
-from data import get_dataloader
-from loguru import logger
-from collections import defaultdict
-import fnmatch
-from tqdm import tqdm
-from .tools import timeit
-
-from .memory import cleanup_memory, distribute_model
-import lm_eval
-from lm_eval import utils as lm_eval_utils
-from lm_eval.models.huggingface import HFLM
 from typing import List
 
-def eval_ppl(args, model, tokenizer, is_split=False):
-    # loading eval dataloader
-    eval_loader = get_dataloader(args, tokenizer, model.seq_len, args.eval_data_path, eval_mode=True) # Tuple
-    test_loader = torch.stack([loader[0] for loader in eval_loader]) # [n,1,2048]->Tenseor
+import lm_eval
+import torch
+import torch.nn as nn
+from lm_eval.models.huggingface import HFLM
+from loguru import logger
+from tqdm import tqdm
+
+from .memory import cleanup_memory, distribute_model
+from .tools import timeit
+
+
+def eval_ppl(args, model, test_loader: torch.Tensor, is_split=False):
     with torch.no_grad():
         if '70b' in args.model.lower() or is_split:
             ppl = eval_ppl_split(args, model, test_loader)

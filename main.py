@@ -1,6 +1,7 @@
 
 import os
 
+import torch
 from lm_eval.utils import make_table
 
 from cfg import get_args
@@ -36,10 +37,15 @@ def main(demo=False):
             args.logger.info(f"save model to {args.save_model}")
 
     args.save_filepath = os.path.join(args.output_dir, f"log_{args.prune_method}.txt")
-    ## ppl test
-    ppl_test = eval_ppl(args, model, tokenizer)
-    # device offloading
-    # ppl_test = eval_ppl(args, model, tokenizer, is_split=True)
+
+    # loading eval dataloader
+    eval_loader = get_dataloader(args, tokenizer, model.seq_len, args.eval_data_path, eval_mode=True) # Tuple[Tensor,Tensor]
+    test_loader = torch.stack([loader[0] for loader in eval_loader]) # [n,1,2048]->Tensor
+
+    # ppl test
+    ppl_test = eval_ppl(args, model, test_loader)
+    ## device offloading
+    ## ppl_test = eval_ppl(args, model, test_loader, is_split=True)
 
     # zero-shot acc test
     if args.eval_zero_shot:
