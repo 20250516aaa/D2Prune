@@ -15,12 +15,12 @@ from lm_eval import utils as lm_eval_utils
 from lm_eval.models.huggingface import HFLM
 from typing import List
 
-def eval_ppl(args, model, tokenizer):
+def eval_ppl(args, model, tokenizer, is_split=False):
     # loading eval dataloader
     eval_loader = get_dataloader(args, tokenizer, model.seq_len, args.eval_data_path, eval_mode=True) # Tuple
     test_loader = torch.stack([loader[0] for loader in eval_loader]) # [n,1,2048]->Tenseor
     with torch.no_grad():
-        if '70b' in args.model.lower():
+        if '70b' in args.model.lower() or is_split:
             ppl = eval_ppl_split(args, model, test_loader)
         else:
             ppl = eval_ppl_no_split(args, model, test_loader)
@@ -109,7 +109,7 @@ def opt_eval(args, model, test_loader):
     layers[0] = layers[0].module
     model.model.decoder.embed_tokens.to("cpu")
     model.model.decoder.embed_positions.to("cpu")
-    model.decoder.final_layer_norm.to("cpu")
+    model.model.decoder.final_layer_norm.to("cpu")
     torch.cuda.empty_cache()
     outs = torch.zeros_like(inps)
     attention_mask = cache['attention_mask']
@@ -160,6 +160,7 @@ def llama_eval(args, model, test_loader):
     layers = model.model.layers
     device = model.model.embed_tokens.weight.device
     if device.type == 'cpu':
+        device = args.device
         model.model.embed_tokens.to(args.device)
     else:
         device = device.index
@@ -186,7 +187,7 @@ def llama_eval(args, model, test_loader):
         except ValueError:
             pass
     layers[0] = layers[0].module
-    model.model.decoder.embed_tokens.to("cpu")
+    model.model.embed_tokens.to("cpu")
     torch.cuda.empty_cache()
     outs = torch.zeros_like(inps)
     attention_mask = cache['attention_mask']
