@@ -35,7 +35,6 @@ save_model: # (str) path to save the pruned model.
 
 # hyperparams ----------------------------------------------------------------------------------------------------------
 s: 1500. # (float) scaling magnitude value for activations
-blocksize: 128 # (int) number of batch-update blocksize for sparsegpt pruning
 r1: 1.  # (float) First-order activation bias term coefficient 1, i.e., $\lambda_1$ ywx
 r2: 0.  # (float) First-order activation bias term coefficient 2, i.e, $\lambda_2$ x^tww^tx
 target_layer_names: "['self_attn.k_proj']" # (str(list)) non-weight-update layer
