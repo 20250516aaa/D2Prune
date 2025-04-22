@@ -70,7 +70,6 @@ class Prune_Args:
         self.parser.add_argument('--d2_sparsegpt', action="store_true")
         self.parser.add_argument('--free', action="store_true")
         self.parser.add_argument('--distribute', action="store_true")
-        self.parser.add_argument('--blocksize', type=int, default=self.cfg['blocksize'], help='sparsegpt block')
 
         self.parser.add_argument('--target_layer_names', type=str,
                                  default=self.cfg['target_layer_names'],
