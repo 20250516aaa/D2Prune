@@ -1,4 +1,4 @@
-# Author 🚀: Xiong Lang
+
 '''
 load args from args.py and model.yaml-->return args (SimpleNamespace)
 '''
