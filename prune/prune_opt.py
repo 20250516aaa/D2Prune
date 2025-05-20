@@ -74,7 +74,7 @@ class D2Prune_OPT:
         '''
         use gpu device == embed_tokens.weight.device, if cpu, turn to gpu
         '''
-        device = self.model.model.decoder.embed_tokens.weight.device  # 确保device一致性
+        device = self.model.model.decoder.embed_tokens.weight.device  
         if device.type == 'cpu':
             device = self.device
             self.model.model.decoder.embed_tokens.to(self.device)
