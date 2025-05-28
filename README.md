@@ -12,7 +12,6 @@ sh scripts/llama-3-8b.sh
 
 # D²Prune: Sparsifying Large Language Models via Dual Taylor Expansion and Attention Distribution Awareness
 
-[![Paper](https://img.shields.io/badge/NeurIPS_2025-Paper-0072C6)](https://xxx.xxx)
 [![Code](https://img.shields.io/badge/Code-Open-4CAF50.svg)](https://anonymous.4open.science/r/D2Prune-FF87)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
