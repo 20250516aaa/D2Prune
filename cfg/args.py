@@ -66,7 +66,7 @@ class Prune_Args:
         self.parser.add_argument('--s', type=float, default=self.cfg['s'], help='activation manitude')
         self.parser.add_argument('--auto_s', action="store_true", help='model seq len for auto s')
         self.parser.add_argument('--r1', type=float, default=self.cfg['r1'], help='First-order activation bias term coefficient 1, i.e., $\lambda_1$ ywx')
-        self.parser.add_argument('--r2', type=float, default=self.cfg['r2'], help='First-order activation bias term coefficient 2, i.e, $\lambda_2$ x^tww^tx')
+        self.parser.add_argument('--r2', type=float, default=self.cfg['r2'], help='Second-order activation bias term coefficient 2, i.e, $\lambda_2$ x^tww^tx')
         self.parser.add_argument('--d2_wanda', action="store_true")
         self.parser.add_argument('--d2_sparsegpt', action="store_true")
         self.parser.add_argument('--free', action="store_true")

@@ -1,13 +1,13 @@
 CUDA_VISIBLE_DEVICES=0 python main.py \
     --model ../cache/llm_weights/models--facebook--opt-125m/snapshots/opt-125m \
-    --sparsity_ratio 0. \
-    --nsamples 128 \
-    --device cuda:0 \
+    --sparsity_ratio 0.5 \
+    --prune_method d2prune \
+    --sparsity_type unstructured \
     --cali_dataset c4 \
     --cali_data_path ../cache/data/c4 \
     --eval_dataset wikitext2 \
     --eval_data_path ../cache/data/wikitext \
-    --output_dir out/opt-125m-dense/ \
+    --output_dir out/opt-125m-d2prune-sp0.5/ \
     --s 1500 \
     --r1 1 \
     --r2 0 \
