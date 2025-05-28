@@ -98,7 +98,7 @@ class PruneDataset:
         if self.dataset_name == "c4":
             for _ in tqdm(range(self.args.nsamples), desc="Processing calibration data"):
                 while True:
-                    i = random.randint(0, len(train_data) - 1)  # 第i个句子
+                    i = random.randint(0, len(train_data) - 1)  
 
                     train_enc = tokenizer(train_data[i]['text'], return_tensors='pt')
 
@@ -108,7 +108,7 @@ class PruneDataset:
                         continue
 
                 j = random.randint(0, train_enc['input_ids'].shape[1] - seq_len - 1)
-                inp = train_enc.input_ids[:, j:(j + seq_len)]  # 获取词序列
+                inp = train_enc.input_ids[:, j:(j + seq_len)]  
 
                 tar = inp.clone()
                 tar[:, :-1] = -100

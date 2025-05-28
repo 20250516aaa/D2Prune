@@ -26,7 +26,7 @@ def get_args(cfg, table=True):
         table_data = [["param", "value", "description"]]
         args.logger.info("|      Parameters      |      Value     |     Description     |")
         for key, value in vars(args).items():
-            # 查找对应的描述
+            
             description = "None"
             for action in Prune_Args(cfg).parser._actions:
                 if key == action.dest:
