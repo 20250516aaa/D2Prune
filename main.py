@@ -1,13 +1,12 @@
 
 import os
-
 import torch
 from lm_eval.utils import make_table
 
 from cfg import get_args
 from data import get_dataloader
 from model import get_model
-from prune import D2Prune
+from prune import D2Prune, Pruner
 from utils import eval_ppl, eval_zero_shot
 
 #-----------------------------------loading args from parameters yaml file----------------------------------------------#
@@ -20,6 +19,9 @@ if args.free:
 else:
     model, tokenizer = get_model(args.model, device_type="auto") # gpu loading
 model.eval()
+args.seq_len = model.seq_len
+model_name = args.model.split("/")[-1]
+args.model_name = model_name
 
 def main(demo=False):
     if args.sparsity_ratio != 0:
@@ -27,8 +29,15 @@ def main(demo=False):
         train_loader = get_dataloader(args, tokenizer, model.seq_len, args.cali_dataset, eval_mode=False)
 
         args.logger.info("pruning starts")
-        d2prune = D2Prune(args, model).pruner
-        d2prune.prune_llm(train_loader)
+        if args.prune_method == 'd2prune':
+            pruner = D2Prune(args, model).pruner
+        else:
+            if args.prune_method == 'pruner-zero':
+                from prune.pruner_zero import get_layer_gradient, GPTree
+                args.gradients_l2 = get_layer_gradient(args, model, train_loader, args.device, data_cache_dir='../Bi-SparseLLM/dataset/cache')
+                args.engine = GPTree.load_tree('./prune/pruner_zero/best_tree.json')
+            pruner = Pruner(args, model).pruner
+        pruner.prune_llm(train_loader)
 
         # Save the pruned model
         if args.save_model:
@@ -51,7 +60,7 @@ def main(demo=False):
     if args.eval_zero_shot:
         task_list = None
         if demo:
-            task_list = ['rte']
+            task_list = ['boolq']
         results = eval_zero_shot(args, model, tokenizer, task_list=task_list)
         args.logger.info("\n" + make_table(results))
         with open(args.save_filepath, "w") as f:

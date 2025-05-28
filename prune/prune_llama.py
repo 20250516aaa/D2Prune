@@ -1,12 +1,17 @@
-from .d2prune_utils import D2SparseGPT, D2Wanda
-import torch.nn as nn
-import torch
 import gc
 import time
-from utils import timeit
-from tqdm import tqdm
+import torch
+import torch.nn as nn
+from tqdm import trange
 
-class D2Prune_LLaMA:
+from utils import timeit
+from .d2prune_utils import D2SparseGPT, D2Wanda
+from .pruner_zero import PrunerZero
+from .sparsegpt import SparseGPT
+from .wanda import Wanda
+
+
+class D2Prune_LLAMA:
     '''
     D2Prune:
     1. using 1st-order activation derivatives and 2nd-order weights derivatives for pruning metric
@@ -175,7 +180,7 @@ class D2Prune_LLaMA:
     def prune_llm(self, train_loader):
         self.init_model()
         inps, outs, attention_mask, position_ids = self.prepare_layer_calibration(train_loader)
-        for i in tqdm(range(len(self.layers)), desc='Pruning Processing'):
+        for i in trange(len(self.layers), desc='Pruning Processing'):
             layer = self.layers[i]
             self.index_layer = f'layer_{i}'
             if f"model.layers.{i}" in self.model.hf_device_map:  # multiple gpu can run, this means model init by "auto"
@@ -221,3 +226,218 @@ class D2Prune_LLaMA:
         prune_ratio = self.check_sparsity()
         self.logger.info(f"sparsity ratio check {prune_ratio:.4f}")
         return self.model
+
+
+class Prune_LLAMA:
+    def __init__(self, args, model):
+        self.args = args
+        self.model = model
+        self.nsamples = args.nsamples
+        self.device = args.device
+
+        self.sparsity_ratio = args.sparsity_ratio
+        self.prune_n = args.prune_n
+        self.prune_m = args.prune_m
+        self.logger = args.logger
+
+
+    def init_model(self): # share
+        self.model.eval()
+        self.use_cache = self.model.config.use_cache
+        self.model.config.use_cache = False
+        self.layers = self.model.model.layers
+
+    @classmethod
+    def find_layers(cls, module, layers=[nn.Linear], name=''):
+        if type(module) in layers:
+            return {name: module}
+        res = {}
+        for name1, child in module.named_children():
+            res.update(cls.find_layers(
+                child, layers=layers, name=name + '.' + name1 if name != '' else name1
+            ))
+        return res
+
+    def check_sparsity(self, tolerance=1e-6):
+        self.model.config.use_cache = False
+        count = 0
+        total_params = 0
+        for i in range(len(self.layers)):
+            layer = self.layers[i]
+            subset = self.find_layers(layer)
+            sub_count = 0
+            sub_params = 0
+            for name in subset:
+                W = subset[name].weight.data
+                # count += (W==0).sum().item()
+                count += (W == 0).sum().cpu().item()
+                total_params += W.numel()
+                # sub_count += (W == 0).sum().item()
+                sub_count += (W == 0).sum().cpu().item()
+                sub_params += W.numel()
+            self.logger.info(f"layer {i} sparsity {float(sub_count) / sub_params:.6f}")
+        self.model.config.use_cache = self.use_cache
+        error = abs(float(count) / total_params - self.sparsity_ratio)
+        if error <= tolerance:
+            self.logger.info("Pruning correctly executed")
+        else:
+            self.logger.info("Pruning not performed correctly")
+        return float(count)/total_params
+
+    @torch.no_grad()
+    def prepare_layer_calibration(self, train_loader, layer_ind=0):
+        '''
+        use gpu device == embed_tokens.weight.device, if cpu, turn to gpu
+        '''
+        device = self.model.model.embed_tokens.weight.device  #
+        if device.type == 'cpu':
+            device = self.device
+            self.model.model.embed_tokens.to(device)
+        else:
+            device = device.index
+        self.logger.info(f"using gpu to calibrate-->device: {device}")
+
+        dtype = next(iter(self.model.parameters())).dtype  # torch.float16
+        inps = torch.zeros((self.nsamples, self.model.seq_len, self.model.config.hidden_size), dtype=dtype,
+                           device=device)
+        inps.requires_grad = False
+        cache = {'i': 0, 'attention_mask': None, "position_ids": None}
+
+        class Catcher(nn.Module):
+            def __init__(self, module):
+                super().__init__()
+                self.module = module
+
+            def forward(self, inp, **kwargs):
+                inps[cache['i']] = inp
+                cache['i'] += 1
+                cache['attention_mask'] = kwargs['attention_mask']
+                cache['position_ids'] = kwargs['position_ids']
+                raise ValueError
+
+        self.layers[layer_ind] = Catcher(self.layers[layer_ind])
+        for batch in train_loader:  #
+            try:
+                self.model(batch[0].reshape(-1, self.model.seq_len).to(device))  # batch[0]-->[1,2048]
+            except ValueError:
+                pass
+        self.layers[layer_ind] = self.layers[layer_ind].module
+        outs = torch.zeros_like(inps)
+        attention_mask = cache['attention_mask']
+        position_ids = cache['position_ids']
+        self.model.config.use_cache = self.use_cache  # True
+        if self.args.free:
+            self.model.model.embed_tokens.to("cpu")
+        torch.cuda.empty_cache()
+        return inps, outs, attention_mask, position_ids
+
+    def forward_layer_wrapper(self, layer, inps, outs, attention_mask, position_ids, GPT):
+        subset = self.find_layers(layer)
+        gpts = {}
+        for name in subset:
+            gpts[name] = GPT(self.args, subset[name])
+
+        def add_batch(name):
+            def tmp(_, inp, out):
+                gpts[name].add_batch(inp[0].data, out.data)
+            return tmp
+        handles = []
+        for name in subset:
+            handles.append(subset[name].register_forward_hook(add_batch(name)))
+        for j in range(inps.shape[0]):
+            with torch.no_grad():  # [1,2048,768]
+                outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0] # [1,2048,768)
+        for h in handles:
+            h.remove()
+        return subset, gpts
+
+    @timeit
+    def prune_layer_weight(self, subset, gpts):
+        for name in subset:
+            if self.args.prune_method == 'sparsegpt':
+                self.logger.info(f"pruning {name} by SparseGPT")
+                gpts[name].fasterprune(self.sparsity_ratio, self.prune_n, self.prune_m,
+                                       blocksize=128, percdamp=.01)
+                gpts[name].free()
+
+            elif self.args.prune_method == 'wanda':
+                self.logger.info(f"pruning {name} by Wanda")
+                gpts[name].fasterprune(self.sparsity_ratio, self.prune_n, self.prune_m)
+                gpts[name].free()
+
+            elif self.args.prune_method == 'pruner-zero':
+                self.logger.info(f"pruning {name} by Pruner-Zero")
+                indexed_name = f'{name}_{self.index_layer}'
+                gradients = self.gradients_l2[indexed_name]
+                gpts[name].fasterprune(self.sparsity_ratio, self.prune_n, self.prune_m, gradients, engine=self.engine)
+                gpts[name].free()
+
+            else:
+                raise NotImplementedError
+            torch.cuda.empty_cache()
+
+    @timeit
+    def prune_llm(self, train_loader):
+        self.init_model()
+        inps, outs, attention_mask, position_ids = self.prepare_layer_calibration(train_loader)
+        if self.args.prune_method == 'pruner-zero':
+            self.logger.info("you must loading model gradient for pruner-zero")
+            self.gradients_l2 = self.args.gradients_l2
+            self.engine = self.args.engine   # GPTree.load_tree('../Pruner-Zero/data/best_tree.json')
+        for i in trange(len(self.layers), desc='Pruning Processing'):
+            layer = self.layers[i]
+            self.index_layer = f'layer_{i}'
+            if f"model.layers.{i}" in self.model.hf_device_map:  # multiple gpu can run, this means model init by "auto"
+                dev = self.model.hf_device_map[f"model.layers.{i}"]
+                inps, outs, attention_mask = inps.to(dev), outs.to(dev), attention_mask.to(dev)
+
+            elif layer.self_attn.q_proj.weight.device.type == 'cpu':  # single gpu can run, running by offload
+                dev = self.device
+                layer.to(dev)
+                inps, outs, attention_mask = inps.to(dev), outs.to(dev), attention_mask.to(dev)
+
+            start = time.time()
+            # 1. forward layer wrapper
+            if self.args.prune_method == 'sparsegpt':
+                GPT = SparseGPT
+            elif self.args.prune_method == 'wanda':
+                GPT = Wanda
+            elif self.args.prune_method == 'pruner-zero':
+                GPT = PrunerZero
+            else:
+                raise NotImplementedError
+
+            # 1. forward layer wrapper
+            subset, gpts= self.forward_layer_wrapper(layer, inps, outs, attention_mask, position_ids, GPT)
+
+            # 2. pruning weight
+            self.prune_layer_weight(subset, gpts)
+
+            # 3. forward layers
+            for j in range(self.nsamples):
+                with torch.no_grad():
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+            # update next layer inputs
+            self.logger.info(f"layer {i} finished pruning, run time:{time.time() - start}")
+            inps, outs = outs, inps
+
+            del layer, subset, gpts
+            gc.collect()
+            torch.cuda.empty_cache()
+            if self.args.free:
+                self.layers[i].to("cpu")
+                torch.cuda.empty_cache()
+        self.model.config.use_cache = self.use_cache
+        torch.cuda.empty_cache()
+        prune_ratio = self.check_sparsity()
+        self.logger.info(f"sparsity ratio check {prune_ratio:.4f}")
+
+
+
+
+
+
+
+
+
+

@@ -1,11 +1,11 @@
 """layer wrapper for handling the result of each layer, such as Hessian matrix or ||x||2"""
 
-import torch.nn as nn
-import torch
-import time
-from sklearn.cluster import KMeans
-import transformers
 import math
+import time
+import torch
+import torch.nn as nn
+import transformers
+from sklearn.cluster import KMeans
 from torch import Tensor
 
 
@@ -34,7 +34,8 @@ class D2SparseGPT:
             self.delta_x_scaler_row = torch.zeros((self.columns), device=self.dev)
 
         self.nsamples = 0
-        self.s = self.args.s
+
+        self.s = self.args.seq_len if self.args.auto_s else self.args.s
         self.r1 = self.args.r1
         self.r2 = self.args.r2
 
@@ -65,7 +66,7 @@ class D2SparseGPT:
                 self.delta_x_scaler_row /= self.s
             else:
                 self.y_scaler_col += torch.norm(out.reshape(-1, out.shape[-1]), p=2, dim=0) / self.s # y
-                self.delta_x_scaler_row += torch.norm(inp, p=2, dim=1) ** 2 / self.s  # x^2
+                self.delta_x_scaler_row += torch.norm(inp, p=2, dim=1) / self.s  # x
 
 
     def cal_s_by_kmeans(self) -> Tensor:
@@ -116,9 +117,9 @@ class D2SparseGPT:
                     if self.args.d2_sparsegpt:  # w * y * delta_x, x^t*w*w^t*delta_x
 
                         tmp += self.r1 * ((self.y_scaler_col.reshape((-1, 1)) ** (1)) * torch.abs(W1) * (
-                                    self.delta_x_scaler_row[i1:i2].reshape((1, -1)) ** (1 / 2))) # ywx
+                                    self.delta_x_scaler_row[i1:i2].reshape((1, -1)) ** (1))) # ywx
 
-                        tmp += -self.r2 * (W1 ** 2) *(self.delta_x_scaler_row[i1:i2].reshape((1, -1)) ** (1)) # 768,128 w^2x^2
+                        tmp += -self.r2 * (W1 ** 2) *(self.delta_x_scaler_row[i1:i2].reshape((1, -1)) ** (2)) # 768,128 w^2x^2
                     thresh = torch.sort(tmp.flatten())[0][int(tmp.numel() * sparsity)]
                     mask1 = tmp <= thresh
             else:
@@ -132,9 +133,9 @@ class D2SparseGPT:
                     tmp = W1[:, i:(i + prune_m)] ** 2 / (torch.diag(Hinv1)[i:(i + prune_m)].reshape((1, -1))) ** 2
                     if self.args.d2_sparsegpt:
                         tmp += self.r1 * ((self.y_scaler_col.reshape((-1, 1)) ** (1)) * torch.abs(W1[:, i:(i + prune_m)]) * (
-                                self.delta_x_scaler_row[i1:i2][i:(i + prune_m)].reshape((1, -1)) ** (1 / 2)))  # lambda_1 * ywx
+                                self.delta_x_scaler_row[i1:i2][i:(i + prune_m)].reshape((1, -1)) ** (1)))  # lambda_1 * ywx
                         # lambda_2 w^2x^2
-                        tmp += -self.r2 * (W1[:, i:(i + prune_m)] ** 2) * (self.delta_x_scaler_row[i1:i2][i:(i + prune_m)].reshape((1, -1)) ** (1))  # 768,128
+                        tmp += -self.r2 * (W1[:, i:(i + prune_m)] ** 2) * (self.delta_x_scaler_row[i1:i2][i:(i + prune_m)].reshape((1, -1)) ** (2))  # 768,128
                     mask1.scatter_(1, i + torch.topk(tmp, prune_n, dim=1, largest=False)[1], True)
                 q = w.clone()
                 q[mask1[:, i]] = 0
@@ -167,7 +168,7 @@ class D2SparseGPT:
 class D2Wanda:
     '''
     ## Wanda: https://github.com/locuslab/wanda
-    Add the 1st-order activation derivatives based on the Wanda
+    Add the 1st and 2nd-order activation derivatives based on the Wanda
     '''
     def __init__(self, args, layer):
         self.args = args
@@ -183,7 +184,7 @@ class D2Wanda:
             self.delta_x_scaler_row = torch.zeros((self.columns), device=self.dev)
 
         self.nsamples = 0
-        self.s = self.args.s
+        self.s = self.args.seq_len if self.args.auto_s else self.args.s
         self.r1 = self.args.r1
         self.r2 = self.args.r2
 
@@ -203,7 +204,8 @@ class D2Wanda:
 
         self.nsamples += tmp
         inp = inp.type(torch.float32)
-        self.scaler_row += torch.norm(inp, p=2, dim=1) ** 2 / self.nsamples
+        self.scaler_row += torch.norm(inp, p=2, dim=1) ** 2 / self.nsamples # ||x||^2
+
 
         if self.args.d2_wanda:
             if self.args.kmeans:
@@ -225,15 +227,26 @@ class D2Wanda:
         # self.args.logger.info(f"scaling factor s by kmeans for output activations: {s}")
         return s
 
+    def cal_s_by_mean_outliers(self):
+        pass
+
+
 
     def fasterprune(self, sparsity, prune_n=0, prune_m=0):
         # org-->scaling to sqrt, Cauchy-Schwarz inequality
-        W_metric = torch.abs(self.layer.weight.data) * torch.sqrt(self.scaler_row.reshape((1, -1)))
+        # W_metric = torch.abs(self.layer.weight.data) * torch.sqrt(self.scaler_row.reshape((1, -1)))
+        W_metric = (torch.abs(self.layer.weight.data) ** 2) * (self.scaler_row.reshape((1, -1)) ** (1))  # w^2 * x^2
         if self.args.d2_wanda:
             # (lambda_1 ywx)^(1/2)
-            W_metric += (self.r1 ** (1/2)) * (self.y_scaler_col.reshape((-1, 1)) ** (1 / 2)) * (torch.abs(self.layer.weight.data) ** (1 / 2)) * self.delta_x_scaler_row.reshape((1, -1)) ** (1/2)
-            # (lambda_2 w^2x^2)^1/2=sqrt(lambda_2) wx
-            W_metric += -(self.r2 ** (1/2)) * (torch.abs(self.layer.weight.data)) * (self.delta_x_scaler_row.reshape((1, -1)) ** (1))  # 768,128
+            # W_metric += (self.r1 ** (1/2)) * (self.y_scaler_col.reshape((-1, 1)) ** (1 / 2)) * (torch.abs(self.layer.weight.data) ** (1 / 2)) * self.delta_x_scaler_row.reshape((1, -1)) ** (1/2)
+            # # (lambda_2 w^2x^2)^1/2=sqrt(lambda_2) wx
+            # W_metric += -(self.r2 ** (1/2)) * (torch.abs(self.layer.weight.data)) * (self.delta_x_scaler_row.reshape((1, -1)) ** (1))  # 768,128
+
+            # # new-->not scaling to sqrt: correct
+            ## ywx
+            W_metric += (self.r1) * (self.y_scaler_col.reshape((-1, 1)) ** (1)) * (torch.abs(self.layer.weight.data)) * (self.delta_x_scaler_row.reshape((1, -1)) ** (0))
+            ## w^2x^2
+            W_metric += -(self.r2) * (torch.abs(self.layer.weight.data) ** (2))  * (self.delta_x_scaler_row.reshape((1, -1)) ** (2))  # 768,128
 
         W_mask = (torch.zeros_like(W_metric) == 1)
 
@@ -258,3 +271,5 @@ class D2Wanda:
             self.y_scaler_col = None
             self.delta_x_scaler_row = None
         torch.cuda.empty_cache()
+
+

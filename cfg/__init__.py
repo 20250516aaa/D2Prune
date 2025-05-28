@@ -1,12 +1,13 @@
-# Author 🚀: Xiong Lang
+
 '''
 load args from args.py and model.yaml-->return args (SimpleNamespace)
 '''
 
 
-from .args import Prune_Args
-from utils import read_yaml_to_dict, setup_logger
 from tabulate import tabulate
+
+from utils import read_yaml_to_dict, setup_logger
+from .args import Prune_Args
 
 
 def get_args(cfg, table=True):
